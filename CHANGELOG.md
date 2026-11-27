@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.7 — 2026-11-26
+
+- Queue order: new `queue_order` setting. `"manual"` (the default) keeps the stored order. `"newest_best"` ranks every role by fit score plus a freshness bonus on every read, with HOT roles always first, so a new strong role rises and a stale one sinks without hand re-ranking. Unscored roles use a tier stand-in; "posted" dates, LinkedIn relative ages ("2 weeks ago") and the day we found the role are all understood
+- The job page shows the live queue number
+
 ## 0.3.6 — 2026-11-25
 
 Three community fixes from @charles-hood, merged as PRs #1 to #3. Thank you.

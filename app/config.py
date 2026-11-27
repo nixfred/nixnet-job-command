@@ -17,7 +17,7 @@ import os
 import sys
 import datetime
 
-VERSION = "0.3.6"
+VERSION = "0.3.7"
 APP_NAME_DEFAULT = "NixNet Job Command"
 BRAND_DEFAULT = "nixfred"
 
@@ -203,6 +203,9 @@ class Config:
         self.first_name = (
             g("first_name") or self.profile.get("first_name") or self.display_name
         )
+        # "manual" keeps the stored queue_rank order. "newest_best" ranks by fit plus freshness on every read.
+        qo = (os.environ.get("NJC_QUEUE_ORDER") or g("queue_order") or "manual")
+        self.queue_order = str(qo).strip().lower() if str(qo).strip().lower() in ("manual", "newest_best") else "manual"
         self.logo = g("logo") or self.profile.get("logo") or "/logo.svg"
         self.favicon = g("favicon") or self.profile.get("favicon") or "/favicon.svg"
         # Optional folder whose files shadow app/static (logo, favicon, ...).

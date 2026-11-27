@@ -23,6 +23,10 @@ daily_goal = 5
 # First day of the Progress graph. If omitted, first boot uses today.
 # progress_start = "2026-11-25"
 
+# Queue order. "manual" keeps the stored queue_rank. "newest_best" re-ranks on every read by fit score plus
+# how new the role is (HOT roles stay first), so a fresh strong role rises and a stale one sinks by itself.
+queue_order = "manual"
+
 assistant_name = "your assistant"
 
 [identity]

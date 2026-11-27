@@ -9,6 +9,7 @@ import base64, csv, io, json, os, re, sqlite3, sys, threading, time, uuid, datet
 import custom_answers as CA
 import duplicates as DUP
 import alerts as AL
+import queue_order as QO
 import company_policy as CP
 from config import CFG, VERSION
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -401,7 +402,10 @@ def all_jobs(c, light=True):
             d.pop("questions", None)
             d.pop("jd", None)
         out.append(d)
-    out.sort(key=lambda d: (0 if is_hot(d) else 1, d.get("queue_rank") or 9999, d.get("ref")))
+    if CFG.queue_order == "newest_best":
+        QO.order(out, CFG.today(), is_hot)
+    else:
+        out.sort(key=lambda d: (0 if is_hot(d) else 1, d.get("queue_rank") or 9999, d.get("ref")))
     return out
 
 

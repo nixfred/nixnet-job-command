@@ -662,7 +662,7 @@ async function jobView(ref) {
     : `<input data-f="${k}" type="${type}" value="${esc(j[k] || "")}" placeholder="${esc(ph)}">`}`;
   const answers = (j.answers || []);
   app.innerHTML = `
-  <p class="small"><a href="#/jobs">← All jobs</a> · <span class="ref">${j.ref}</span> · queue #${j.queue_rank || "-"}</p>
+  <p class="small"><a href="#/jobs">← All jobs</a> · <span class="ref">${j.ref}</span> · queue #${((STATE.jobs.find(x => x.ref === j.ref) || j).queue_rank) || "-"}</p>
   <div class="hero"><div style="flex:1;min-width:280px"><h1 id="pageTop" tabindex="-1">${esc(j.company)} · ${esc(j.role)}</h1>
     <div class="row">${statusPill(j.status)} ${hotBadge(j)}${stretchBadge(j)} ${isPaused(j.company) && j.status === "To apply" ? `<span class="pill">Paused</span>` : ""} ${tierTag(j.tier)} <span class="tag">Fit ${j.fit_score ?? "?"}/100</span><span class="tag">${esc(j.comp || "Pay not posted")}</span><span class="tag">${esc(j.location || "")}</span>${j.remote ? `<span class="tag">${esc(j.remote)}</span>` : ""}${j.posted ? `<span class="tag">Posted ${esc(j.posted)}</span>` : ""}${j.ats ? `<span class="tag">${esc(j.ats)}</span>` : ""}</div></div>
     <div class="row"><a class="btn p big" target="_blank" rel="noopener" href="${esc(j.apply_url || j.posting_url)}">Open application ↗</a>${j.posting_url && j.posting_url !== j.apply_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(j.posting_url)}">Posting ↗</a>` : ""}${skipCompanyBtn(j.company)}${stretchMoveBtn(j)}${nlaButtons(j, { big: true })}</div></div>
