@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.8 — 2026-11-28
+
+Security fixes. Upgrade if you run the app in a browser you also use for the web.
+
+- Cross-site writes are refused. A browser lets any web page send a plain-text POST to `localhost` without asking first, and the server read every body as JSON, so a page you visited could add jobs, change settings or overwrite answers. Writes that carry an `Origin` header must now come from the app's own origin; requests without one (curl, agents, scripts) work as before
+- DNS rebinding is blocked. Requests whose `Host` is not localhost, a bind address or a name in the new `allowed_hosts` setting get 403. Add your tailnet or LAN name to `allowed_hosts` if you open the app by name
+- Refs may only use letters, digits and `-`, and answer ids also `_` (max 64). Create returns 400 and import lists what it skipped under `rejected`
+- The front end escapes every ref and id it writes into the page, and links from job data open only as `http(s):` or `mailto:`, never `javascript:`. Together with the fixes above, this closes a path where a crafted job could run script inside the app
+
 ## 0.3.7 — 2026-11-26
 
 - Queue order: new `queue_order` setting. `"manual"` (the default) keeps the stored order. `"newest_best"` ranks every role by fit score plus a freshness bonus on every read, with HOT roles always first, so a new strong role rises and a stale one sinks without hand re-ranking. Unscored roles use a tier stand-in; "posted" dates, LinkedIn relative ages ("2 weeks ago") and the day we found the role are all understood

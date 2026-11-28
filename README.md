@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.7-7ff9bc?style=flat-square&labelColor=070707" alt="0.3.7">
+  <img src="https://img.shields.io/badge/version-0.3.8-7ff9bc?style=flat-square&labelColor=070707" alt="0.3.8">
   <img src="https://img.shields.io/badge/python-3.9%2B-0c9793?style=flat-square&labelColor=070707" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/deps-stdlib%20only-17a07e?style=flat-square&labelColor=070707" alt="stdlib only">
   <img src="https://img.shields.io/badge/license-MIT-52ca9a?style=flat-square&labelColor=070707" alt="MIT">
@@ -251,7 +251,7 @@ The hexagon and wordmark in `brand/` are the official nixfred marks, copied unmo
 
 ## Status
 
-v0.3.7. Python 3.9+ and the standard library only. Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). The screenshots above use the fictional example seed, not real people or companies.
+v0.3.8. Python 3.9+ and the standard library only. Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). The screenshots above use the fictional example seed, not real people or companies.
 
 ## License
 

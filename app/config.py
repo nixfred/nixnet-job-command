@@ -17,7 +17,7 @@ import os
 import sys
 import datetime
 
-VERSION = "0.3.7"
+VERSION = "0.3.8"
 APP_NAME_DEFAULT = "NixNet Job Command"
 BRAND_DEFAULT = "nixfred"
 
@@ -294,6 +294,13 @@ class Config:
                 "refusing to bind 0.0.0.0 unless NJC_ALLOW_PUBLIC_BIND=1 is set; using 127.0.0.1\n"
             )
             self.bind = ["127.0.0.1"]
+        # Extra Host names the server answers to (a tailnet MagicDNS name, a LAN hostname). Loopback names and
+        # bind addresses are always allowed. Anything else gets 403, which blocks DNS-rebinding reads.
+        self.allowed_hosts = [h.lower() for h in _as_list(
+            os.environ.get("NJC_ALLOWED_HOSTS")
+            or os.environ.get("JCC_ALLOWED_HOSTS")
+            or g("allowed_hosts")
+        )]
 
         start = (
             os.environ.get("NJC_PROGRESS_START")

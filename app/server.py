@@ -40,6 +40,53 @@ def apply_runtime():
     PROGRESS_START = CFG.progress_start
 
 STATUSES = ["To apply", "Applied", "Next steps", "Interview scheduled", "Offer", "Rejected", "Closed", "Withdrawn"]
+# Refs and answer ids end up in URLs, HTML attributes and CSS selectors, so keep them to a safe alphabet.
+REF_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+ANSWER_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+def valid_ref(ref):
+    return isinstance(ref, str) and bool(REF_RE.match(ref))
+
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+ANY_ADDR = {"0.0.0.0", "::"}
+
+def _host_only(h):
+    """'Example.com:8742' -> 'example.com', '[::1]:8742' -> '::1'."""
+    h = (h or "").strip().lower()
+    if h.startswith("["):
+        return h[1:h.find("]")] if "]" in h else h[1:]
+    return h.rsplit(":", 1)[0] if h.count(":") == 1 else h
+
+def allowed_hosts():
+    """Host names this server answers to. None means any (all-interfaces bind with no allowed_hosts set)."""
+    extra = {h.lower() for h in CFG.allowed_hosts}
+    binds = {b.lower() for b in BIND}
+    if binds & ANY_ADDR and not extra:
+        return None
+    return LOOPBACK_HOSTS | (binds - ANY_ADDR) | extra
+
+def request_problem(headers, mutating):
+    """Why a request must be refused, or None.
+
+    Host check: blocks DNS rebinding, where an attacker's domain resolves to 127.0.0.1 and reads the API.
+    Origin check (writes only): blocks cross-site requests. A browser can POST text/plain to localhost
+    from any page without a preflight; it always sends Origin on those, while curl and agents send none.
+    """
+    hosts = allowed_hosts()
+    host = headers.get("Host")
+    if host and hosts is not None and _host_only(host) not in hosts:
+        return "unknown Host header %r; add it to allowed_hosts in config to use this name" % host
+    if not mutating:
+        return None
+    origin = headers.get("Origin")
+    if origin is not None:
+        # Same origin only: the page's scheme://host:port must be this server as the browser addressed it.
+        u = urlparse(origin)
+        if u.scheme not in ("http", "https") or not host or u.netloc.lower() != host.strip().lower():
+            return "cross-origin write refused (Origin %s)" % origin
+    elif (headers.get("Sec-Fetch-Site") or "").lower() == "cross-site":
+        return "cross-site write refused"
+    return None
 CORE = ["ref", "company", "role", "status", "fit_score", "priority", "source", "updated_at"]
 
 _lock = threading.Lock()
@@ -281,8 +328,14 @@ def seed_import(c, seed, actor="import", overwrite=False):
     only empty fields and crawl fields (jd, questions, crawl_*) are refreshed."""
     crawl_fields = {"jd", "questions", "crawl_status", "crawled_at", "comp", "posted", "location", "remote", "skills", "ats", "apply_url", "posting_url"}
     added = updated = 0
+    rejected = []
     for j in seed.get("jobs", []):
+        if not isinstance(j, dict):
+            continue
         ref = j.get("ref")
+        if ref and not valid_ref(ref):
+            rejected.append(str(ref)[:80])
+            continue
         if not ref:
             if not (j.get("company") and j.get("role")):
                 continue
@@ -325,10 +378,13 @@ def seed_import(c, seed, actor="import", overwrite=False):
                 c.execute("UPDATE jobs SET data=?, status=?, updated_at=? WHERE ref=?", (json.dumps(cur), cur.get("status"), cur["updated_at"], ref))
                 updated += 1
     for j in seed.get("jobs", []):
-        ref = j.get("ref")
-        if ref:
+        ref = j.get("ref") if isinstance(j, dict) else None
+        if valid_ref(ref):
             ensure_custom_answers(c, ref, force=False, actor=actor)
     for a in seed.get("answers", []):
+        if not isinstance(a, dict) or not ANSWER_ID_RE.match(str(a.get("id") or "")):
+            rejected.append("answer %s" % str(a.get("id") if isinstance(a, dict) else a)[:80])
+            continue
         if not c.execute("SELECT 1 FROM answers WHERE id=?", (a["id"],)).fetchone():
             c.execute("INSERT INTO answers(id,category,question,answer,%s,sort,updated_at) VALUES(?,?,?,?,?,?,?)" % ANS_FLAG,
                       (a["id"], a.get("category", ""), a["question"], a.get("answer", ""), 1 if a.get("needs_review") or a.get("fred_decides") else 0, a.get("sort", 0), now()))
@@ -354,7 +410,11 @@ def seed_import(c, seed, actor="import", overwrite=False):
         )
         contacts_n += 1
     c.commit()
-    return {"added": added, "updated": updated, "contacts": contacts_n}
+    out = {"added": added, "updated": updated, "contacts": contacts_n}
+    if rejected:
+        out["rejected"] = rejected
+        out["rejected_reason"] = "refs may only use letters, digits and '-'; answer ids also allow '_' (max 64)"
+    return out
 
 def job_out(c, ref, full=True):
     row = c.execute("SELECT data FROM jobs WHERE ref=?", (ref,)).fetchone()
@@ -833,7 +893,17 @@ class H(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def refuse(self, mutating):
+        """Send 403 and return True when the request fails the Host / Origin checks."""
+        why = request_problem(self.headers, mutating)
+        if why:
+            self.send(403, {"error": why})
+            return True
+        return False
+
     def do_GET(self):
+        if self.refuse(False):
+            return
         u = urlparse(self.path); p = u.path; q = parse_qs(u.query)
         try:
             with _lock:
@@ -930,6 +1000,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         # Deliberately no hard deletes: screenshots are archived, jobs are Closed/Withdrawn.
+        if self.refuse(True):
+            return
         u = urlparse(self.path)
         m = re.match(r"^/api/shots/([A-Za-z0-9\-]+)$", u.path)
         if not m:
@@ -950,6 +1022,8 @@ class H(BaseHTTPRequestHandler):
         self.send(200, {"ok": True})
 
     def mutate(self, method):
+        if self.refuse(True):
+            return
         u = urlparse(self.path); p = u.path
         try:
             b = self.body()
@@ -977,6 +1051,8 @@ class H(BaseHTTPRequestHandler):
             refs = [r[0] for r in c.execute("SELECT ref FROM jobs WHERE ref LIKE 'J-%'")]
             nxt = max([int(r[2:]) for r in refs if r[2:].isdigit()] + [0]) + 1
             b["ref"] = b.get("ref") or "J-%03d" % nxt
+            if not valid_ref(b["ref"]):
+                raise ValueError("bad ref: use letters, digits and '-' only (max 64)")
             b.setdefault("status", "To apply")
             b.setdefault("source", "Added by hand")
             res = seed_import(c, {"jobs": [b]}, actor=actor)
@@ -1001,6 +1077,8 @@ class H(BaseHTTPRequestHandler):
             return self.send(201, {"id": sid, "filename": fn})
         if p == "/api/answers" and method == "POST":
             aid = b.get("id") or "a-" + uuid.uuid4().hex[:8]
+            if not ANSWER_ID_RE.match(str(aid)):
+                raise ValueError("bad answer id: use letters, digits, '-' and '_' only (max 64)")
             c.execute("INSERT INTO answers(id,category,question,answer,%s,sort,updated_at) VALUES(?,?,?,?,?,?,?)" % ANS_FLAG,
                       (aid, b.get("category", "Custom"), b.get("question", ""), b.get("answer", ""), 1 if b.get("needs_review") or b.get("fred_decides") else 0, b.get("sort", 500), now()))
             c.commit()
