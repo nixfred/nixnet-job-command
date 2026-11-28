@@ -3,6 +3,8 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Links from job data (agents, emails, imports) only open as web or mail links, never javascript: or data:.
+const safeUrl = u => { const s = String(u == null ? "" : u).trim(); return /^(https?:|mailto:)/i.test(s) ? s : "#"; };
 const app = $("#app");
 let STATE = { jobs: [], stats: null, answers: [], settings: {}, policy: { companies: {}, banners: [] } };
 const displayName = () => (STATE.stats && STATE.stats.display_name) || "there";
@@ -185,7 +187,7 @@ function policyBanners(forCompany) {
     : companies.filter(c => c.banner && c.at_cap && !c.skip); // skipped companies are not listed (screen space); at-cap limits stay
   return list.map(c => {
     const resume = c.skip ? ` <button class="btn s" type="button" data-resume-co="${esc(c.company)}">Resume company</button>` : "";
-    const policy = c.policy_url ? ` <a target="_blank" rel="noopener" href="${esc(c.policy_url)}">policy ↗</a>` : "";
+    const policy = c.policy_url ? ` <a target="_blank" rel="noopener" href="${esc(safeUrl(c.policy_url))}">policy ↗</a>` : "";
     return `<div class="callout amber limit-banner" role="status"><b>${esc(c.banner)}</b>${policy}${resume}</div>`;
   }).join("");
 }
@@ -605,9 +607,9 @@ function dash() {
     <div class="card"><h3>Where they came from</h3>${hbars(Object.entries(s.by_source).sort((a, b) => b[1] - a[1]), "#a78bfa")}</div>
   </div>
   <div class="grid g3" style="margin-top:14px">
-    <div class="card"><h3>Up next</h3>${next.map(j => `<div class="row" style="margin:7px 0"><span class="ref">${j.ref}</span><a href="#/job/${j.ref}"><b>${esc(j.company)}</b> ${esc(j.role)}</a><a class="btn s p right" target="_blank" rel="noopener" href="${esc(j.apply_url || j.posting_url)}">Apply ↗</a></div>`).join("") || '<p class="muted">Queue is empty. Nice.</p>'}</div>
-    <div class="card"><h3>Upcoming interviews</h3>${s.upcoming.map(u => `<div style="margin:7px 0"><a href="#/job/${u.ref}"><b>${esc(u.company)}</b></a> <span class="muted small">${esc(new Date(u.at).toLocaleString())}</span></div>`).join("") || '<p class="muted">None scheduled yet.</p>'}</div>
-    <div class="card"><h3>Follow up</h3>${s.followups.map(u => `<div style="margin:7px 0"><a href="#/job/${u.ref}"><b>${esc(u.company)}</b></a> <span class="muted small">${esc(u.at)}</span></div>`).join("")}${s.stale.map(u => `<div style="margin:7px 0"><a href="#/job/${u.ref}"><b>${esc(u.company)}</b></a> <span class="muted small">applied ${esc(u.date_applied)}, no reply in 10+ days</span></div>`).join("") || (s.followups.length ? "" : '<p class="muted">Nothing due.</p>')}</div>
+    <div class="card"><h3>Up next</h3>${next.map(j => `<div class="row" style="margin:7px 0"><span class="ref">${esc(j.ref)}</span><a href="#/job/${esc(j.ref)}"><b>${esc(j.company)}</b> ${esc(j.role)}</a><a class="btn s p right" target="_blank" rel="noopener" href="${esc(safeUrl(j.apply_url || j.posting_url))}">Apply ↗</a></div>`).join("") || '<p class="muted">Queue is empty. Nice.</p>'}</div>
+    <div class="card"><h3>Upcoming interviews</h3>${s.upcoming.map(u => `<div style="margin:7px 0"><a href="#/job/${esc(u.ref)}"><b>${esc(u.company)}</b></a> <span class="muted small">${esc(new Date(u.at).toLocaleString())}</span></div>`).join("") || '<p class="muted">None scheduled yet.</p>'}</div>
+    <div class="card"><h3>Follow up</h3>${s.followups.map(u => `<div style="margin:7px 0"><a href="#/job/${esc(u.ref)}"><b>${esc(u.company)}</b></a> <span class="muted small">${esc(u.at)}</span></div>`).join("")}${s.stale.map(u => `<div style="margin:7px 0"><a href="#/job/${esc(u.ref)}"><b>${esc(u.company)}</b></a> <span class="muted small">applied ${esc(u.date_applied)}, no reply in 10+ days</span></div>`).join("") || (s.followups.length ? "" : '<p class="muted">Nothing due.</p>')}</div>
   </div>`;
   $("#saveGoal").onclick = async () => { await api("/api/settings", { method: "POST", body: { daily_goal: +$("#goal").value } }); toast("Goal saved"); route(); };
 }
@@ -643,10 +645,10 @@ function jobsView() {
     const hiddenN = filtered && q ? STATE.jobs.filter(j => jobMatches(j, q)).length - L.length : 0;
     const hn = $("#hiddenNote");
     if (hn) { hn.innerHTML = hiddenN > 0 ? `<b>${hiddenN} more match "${esc(q)}"</b> but are hidden by the filters above. <a href="#" id="clearFilters">Clear filters</a>` : ""; hn.style.display = hiddenN > 0 ? "" : "none"; const cf = $("#clearFilters"); if (cf) cf.onclick = e => { e.preventDefault(); ["fs", "fsrc", "ft", "fst"].forEach(id => { $("#" + id).value = ""; }); draw(); }; }
-    $("#list").innerHTML = L.map(j => `<div class="jobrow"><span class="ref">${j.ref}</span>
-      <div><a class="t" href="#/job/${j.ref}">${esc(j.company)} · ${esc(j.role)}</a>
+    $("#list").innerHTML = L.map(j => `<div class="jobrow"><span class="ref">${esc(j.ref)}</span>
+      <div><a class="t" href="#/job/${esc(j.ref)}">${esc(j.company)} · ${esc(j.role)}</a>
       <div class="m">${statusPill(j.status)} ${hotBadge(j)}${stretchBadge(j)} ${isPaused(j.company) && j.status === "To apply" ? `<span class="pill">Paused</span>` : ""} ${tierTag(j.tier)} <span>Fit ${j.fit_score ?? "?"}</span><span>${esc(j.comp || "Pay not posted")}</span><span>${esc(j.location || "")}${j.remote ? " · " + esc(j.remote) : ""}</span><span>${esc(j.source || "")}</span>${j.n_questions ? `<span>${j.n_questions} form questions</span>` : ""}</div></div>
-      <div class="acts"><a class="btn ${j.status === "To apply" ? "p" : ""}" target="_blank" rel="noopener" href="${esc(j.apply_url || j.posting_url)}">${j.status === "To apply" ? "Apply ↗" : "Posting ↗"}</a><a class="btn" href="#/job/${j.ref}">Open</a>${nlaButtons(j, { size: "s" })}</div></div>`).join("") || '<p class="muted" style="padding:16px">No matches.</p>';
+      <div class="acts"><a class="btn ${j.status === "To apply" ? "p" : ""}" target="_blank" rel="noopener" href="${esc(safeUrl(j.apply_url || j.posting_url))}">${j.status === "To apply" ? "Apply ↗" : "Posting ↗"}</a><a class="btn" href="#/job/${esc(j.ref)}">Open</a>${nlaButtons(j, { size: "s" })}</div></div>`).join("") || '<p class="muted" style="padding:16px">No matches.</p>';
   };
   ["fs", "fsrc", "ft", "sort"].forEach(id => $("#" + id).addEventListener("input", draw));
   bindEscSearch($("#q"), draw);
@@ -662,10 +664,10 @@ async function jobView(ref) {
     : `<input data-f="${k}" type="${type}" value="${esc(j[k] || "")}" placeholder="${esc(ph)}">`}`;
   const answers = (j.answers || []);
   app.innerHTML = `
-  <p class="small"><a href="#/jobs">← All jobs</a> · <span class="ref">${j.ref}</span> · queue #${((STATE.jobs.find(x => x.ref === j.ref) || j).queue_rank) || "-"}</p>
+  <p class="small"><a href="#/jobs">← All jobs</a> · <span class="ref">${esc(j.ref)}</span> · queue #${((STATE.jobs.find(x => x.ref === j.ref) || j).queue_rank) || "-"}</p>
   <div class="hero"><div style="flex:1;min-width:280px"><h1 id="pageTop" tabindex="-1">${esc(j.company)} · ${esc(j.role)}</h1>
     <div class="row">${statusPill(j.status)} ${hotBadge(j)}${stretchBadge(j)} ${isPaused(j.company) && j.status === "To apply" ? `<span class="pill">Paused</span>` : ""} ${tierTag(j.tier)} <span class="tag">Fit ${j.fit_score ?? "?"}/100</span><span class="tag">${esc(j.comp || "Pay not posted")}</span><span class="tag">${esc(j.location || "")}</span>${j.remote ? `<span class="tag">${esc(j.remote)}</span>` : ""}${j.posted ? `<span class="tag">Posted ${esc(j.posted)}</span>` : ""}${j.ats ? `<span class="tag">${esc(j.ats)}</span>` : ""}</div></div>
-    <div class="row"><a class="btn p big" target="_blank" rel="noopener" href="${esc(j.apply_url || j.posting_url)}">Open application ↗</a>${j.posting_url && j.posting_url !== j.apply_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(j.posting_url)}">Posting ↗</a>` : ""}${skipCompanyBtn(j.company)}${stretchMoveBtn(j)}${nlaButtons(j, { big: true })}</div></div>
+    <div class="row"><a class="btn p big" target="_blank" rel="noopener" href="${esc(safeUrl(j.apply_url || j.posting_url))}">Open application ↗</a>${j.posting_url && j.posting_url !== j.apply_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(safeUrl(j.posting_url))}">Posting ↗</a>` : ""}${skipCompanyBtn(j.company)}${stretchMoveBtn(j)}${nlaButtons(j, { big: true })}</div></div>
   ${policyBanners(j.company)}
   ${dueCallout(j)}${stretchReasonBox(j)}
   ${j.status === "Closed" && (j.closed_reason || j.closed_at) ? `<div class="callout amber" style="margin:12px 0 0"><b>Closed</b> ${j.closed_at ? esc(j.closed_at.replace("T", " ")) + tzLabel() : ""}: ${esc(j.closed_reason || "Closed")}. Use Undo if that was a mistake.</div>` : ""}
@@ -683,7 +685,7 @@ async function jobView(ref) {
       <div class="card"><h2>Answers for this application</h2>
         ${answers.map((a, i) => `<div class="ans ${a.needs_review ? "fd" : ""}"><div class="q"><span>${esc(a.q)}${a.required ? ' <span class="pill">required</span>' : ""}</span><button class="btn s copy" data-copy="#ja${i}">COPY</button></div><div class="a" id="ja${i}" contenteditable="true" data-i="${i}">${esc(a.a)}</div></div>`).join("") || '<p class="muted">No job-specific answers yet. Use the library.</p>'}
         <p class="small muted">Answers are editable: click into one, change it, and it saves when you click away. Ask ${esc(assistantName())} to help rewrite a question if you want a second pass.</p>
-        <div class="row"><button class="btn s" data-copy="Help me answer the application questions for ${j.ref} (${esc(j.company)}, ${esc(j.role)}).">Copy a rewrite request</button></div>
+        <div class="row"><button class="btn s" data-copy="Help me answer the application questions for ${esc(j.ref)} (${esc(j.company)}, ${esc(j.role)}).">Copy a rewrite request</button></div>
       </div>
       ${(j.questions || []).length ? `<div class="card" style="margin-top:14px"><h2>The form, field by field (${esc(j.ats || "")})</h2><table><tr><th>Field</th><th>Type</th><th>Req</th><th>Fill with</th></tr>${j.questions.map(q => `<tr><td>${esc(q.label)}</td><td class="muted small">${esc(q.type || "")}</td><td>${q.required ? "yes" : ""}</td><td class="small">${esc(q.fill || "")}</td></tr>`).join("")}</table></div>` : ""}
       <div class="card" style="margin-top:14px"><h2>Why it fits</h2><p>${esc(j.fit_notes || "")}</p>${j.gaps ? `<p class="small"><b>Gaps to address:</b> ${esc(j.gaps)}</p>` : ""}${j.demo_idea ? `<p class="small"><b>Demo lab idea:</b> ${esc(j.demo_idea)}</p>` : ""}${(j.skills || []).length ? `<div class="row">${j.skills.map(s => `<span class="tag">${esc(s)}</span>`).join("")}</div>` : ""}</div>
@@ -705,13 +707,13 @@ async function jobView(ref) {
         ${fld("notes", "Notes", "textarea")}
         ${fld("feedback", "Outcome feedback", "textarea", "What they said, what to change next time")}
       </div>
-      <div class="row" style="margin-top:12px">${(j.gmail_receipt_url || j.receipt_url) ? `<a class="btn ok" target="_blank" rel="noopener" href="${esc(j.gmail_receipt_url || j.receipt_url)}">Open receipt ↗</a>` : ""}
-        ${j.interview_at ? `<a class="btn ok" target="_blank" rel="noopener" href="${esc(gcalLink(j))}">Add to Google Calendar ↗</a><a class="btn" href="/api/jobs/${j.ref}/ics">Download .ics</a>` : `<span class="muted small">Set an interview time to get the Google Calendar link and .ics.</span>`}</div></div>
-      <div class="card" style="margin-top:14px"><h2>Saved links</h2><div id="urls">${(j.saved_urls || []).map((u, i) => `<div class="row" style="margin:5px 0"><a target="_blank" rel="noopener" href="${esc(u.url)}">${esc(u.label || u.url)}</a><button class="btn s right" data-rmurl="${i}">Remove</button></div>`).join("") || '<p class="muted small">None yet.</p>'}</div>
+      <div class="row" style="margin-top:12px">${(j.gmail_receipt_url || j.receipt_url) ? `<a class="btn ok" target="_blank" rel="noopener" href="${esc(safeUrl(j.gmail_receipt_url || j.receipt_url))}">Open receipt ↗</a>` : ""}
+        ${j.interview_at ? `<a class="btn ok" target="_blank" rel="noopener" href="${esc(safeUrl(gcalLink(j)))}">Add to Google Calendar ↗</a><a class="btn" href="/api/jobs/${esc(j.ref)}/ics">Download .ics</a>` : `<span class="muted small">Set an interview time to get the Google Calendar link and .ics.</span>`}</div></div>
+      <div class="card" style="margin-top:14px"><h2>Saved links</h2><div id="urls">${(j.saved_urls || []).map((u, i) => `<div class="row" style="margin:5px 0"><a target="_blank" rel="noopener" href="${esc(safeUrl(u.url))}">${esc(u.label || u.url)}</a><button class="btn s right" data-rmurl="${i}">Remove</button></div>`).join("") || '<p class="muted small">None yet.</p>'}</div>
         <div class="row" style="margin-top:8px"><input id="nuLabel" placeholder="Label" style="width:140px"><input id="nuUrl" placeholder="https://…" style="flex:1"><button class="btn s" id="addUrl">Add</button></div></div>
       <div class="card" style="margin-top:14px"><h2>Screenshots</h2><div class="drop" id="drop" tabindex="0">Paste a screenshot here (⌘V), drop an image, or <label style="color:var(--teal2);cursor:pointer">pick a file<input type="file" accept="image/*" id="file" hidden multiple></label></div>
-        <div class="shots">${(j.screenshots || []).map(s => `<figure><img src="/shots/${esc(s.filename)}" data-big="/shots/${esc(s.filename)}" alt=""><figcaption>${esc(s.caption || s.ts.slice(0, 16).replace("T", " "))} · <a href="#" data-rmshot="${s.id}">archive</a></figcaption></figure>`).join("")}</div></div>
-      <div class="card" style="margin-top:14px"><h2>Source and referral</h2><div class="kv"><label>Source</label><div>${esc(j.source || "")}</div><label>Referred by</label><div>${esc(j.referrer || "")}</div><label>Referral date</label><div>${esc(j.referral_date || "")}</div>${j.source_url ? `<label>Source link</label><div><a target="_blank" rel="noopener" href="${esc(j.source_url)}">open ↗</a></div>` : ""}</div></div>
+        <div class="shots">${(j.screenshots || []).map(s => `<figure><img src="/shots/${esc(s.filename)}" data-big="/shots/${esc(s.filename)}" alt=""><figcaption>${esc(s.caption || s.ts.slice(0, 16).replace("T", " "))} · <a href="#" data-rmshot="${esc(s.id)}">archive</a></figcaption></figure>`).join("")}</div></div>
+      <div class="card" style="margin-top:14px"><h2>Source and referral</h2><div class="kv"><label>Source</label><div>${esc(j.source || "")}</div><label>Referred by</label><div>${esc(j.referrer || "")}</div><label>Referral date</label><div>${esc(j.referral_date || "")}</div>${j.source_url ? `<label>Source link</label><div><a target="_blank" rel="noopener" href="${esc(safeUrl(j.source_url))}">open ↗</a></div>` : ""}</div></div>
       <div class="card" style="margin-top:14px"><h2>Timeline</h2><div class="timeline">${(j.history || []).map(h => `<div><b>${esc(h.ts.slice(0, 16).replace("T", " "))}</b> ${esc(h.field)}: ${esc((h.old || "").slice(0, 40))} → ${esc((h.new || "").slice(0, 80))} <span class="tag">${esc(h.actor)}</span></div>`).join("")}</div></div>
     </div>
   </div>`;
@@ -735,9 +737,9 @@ async function jobView(ref) {
   $("#addUrl").onclick = async () => { const url = $("#nuUrl").value.trim(); if (!url) return; await patch({ saved_urls: [...(j.saved_urls || []), { url, label: $("#nuLabel").value.trim(), added: new Date().toISOString() }] }, "Link saved"); jobView(ref); };
   $$("[data-rmurl]").forEach(b => b.onclick = async () => { const U = [...(j.saved_urls || [])]; U.splice(+b.dataset.rmurl, 1); await patch({ saved_urls: U }); jobView(ref); });
   $$("[data-rmshot]").forEach(a => a.onclick = async e => { e.preventDefault(); if (!confirm("Archive this screenshot? The file moves to screenshots/archive.")) return; await api("/api/shots/" + a.dataset.rmshot, { method: "DELETE" }); jobView(ref); });
-  $$(".shots img").forEach(im => im.onclick = () => { const d = document.createElement("div"); d.className = "lightbox"; d.innerHTML = `<img src="${im.dataset.big}">`; d.onclick = () => d.remove(); document.body.appendChild(d); });
+  $$(".shots img").forEach(im => im.onclick = () => { const d = document.createElement("div"); d.className = "lightbox"; d.innerHTML = `<img src="${esc(im.dataset.big)}">`; d.onclick = () => d.remove(); document.body.appendChild(d); });
   const upload = async file => { const url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
-    await api(`/api/jobs/${j.ref}/screenshots`, { method: "POST", body: { data_url: url, caption: "" } }); toast("Screenshot saved"); };
+    await api(`/api/jobs/${encodeURIComponent(j.ref)}/screenshots`, { method: "POST", body: { data_url: url, caption: "" } }); toast("Screenshot saved"); };
   const drop = $("#drop");
   const onPaste = async e => { if (!location.hash.startsWith("#/job/")) return; const items = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith("image/")); if (!items.length) return; e.preventDefault(); for (const it of items) await upload(it.getAsFile()); jobView(ref); };
   document.onpaste = onPaste;
@@ -762,7 +764,7 @@ function whoContactsCard(j) {
     const li = (p.linkedin_url || "").trim();
     const em = (p.work_email || "").trim();
     const acts = [
-      li ? `<a class="btn s" target="_blank" rel="noopener" href="${esc(li)}">LinkedIn ↗</a><button class="btn s copy" type="button" data-copy="${esc(li)}">Copy LinkedIn</button>` : "",
+      li ? `<a class="btn s" target="_blank" rel="noopener" href="${esc(safeUrl(li))}">LinkedIn ↗</a><button class="btn s copy" type="button" data-copy="${esc(li)}">Copy LinkedIn</button>` : "",
       em ? `<button class="btn s copy" type="button" data-copy="${esc(em)}">Copy email</button>` : "",
     ].filter(Boolean).join("");
     return `<div class="who-person"><div class="who-top"><div><div class="who-name">${esc(p.name)}</div><div class="who-title">${esc(p.title || "")}</div></div><span class="pill">${esc(kindLabel(p.role_kind))}</span></div>${loc ? `<div class="who-meta">${esc(loc)}</div>` : ""}${em ? `<div class="who-meta">${esc(em)}</div>` : ""}${acts ? `<div class="who-acts">${acts}</div>` : ""}</div>`;
@@ -876,9 +878,9 @@ async function queue(refArg, stretchMode = false) {
    ${policyBanners()}
    <div class="row small muted"><span>${stretchMode ? "Stretch queue" : "Apply queue"} · ${idx + 1} of ${Q.length}${getQ() ? ` matches (${all.length} total)` : ""}</span><span class="right">Keys: <span class="kbd">o</span> open · <span class="kbd">a</span> applied · <span class="kbd">s</span> skip · <span class="kbd">←</span><span class="kbd">→</span></span></div>
    <div class="bar" style="margin:8px 0 18px"><i style="width:${(STATE.stats.applied_today / Math.max(1, STATE.stats.goal)) * 100}%"></i></div>
-   <div class="card"><div class="hero"><div><span class="ref">${j.ref}</span> ${hotBadge(j)}${stretchBadge(j)} ${isPaused(j.company) ? `<span class="pill">Paused</span>` : ""} ${tierTag(j.tier)}<div class="big" id="pageTop" tabindex="-1">${esc(j.company)}</div><div style="font-size:19px">${esc(j.role)}</div>
+   <div class="card"><div class="hero"><div><span class="ref">${esc(j.ref)}</span> ${hotBadge(j)}${stretchBadge(j)} ${isPaused(j.company) ? `<span class="pill">Paused</span>` : ""} ${tierTag(j.tier)}<div class="big" id="pageTop" tabindex="-1">${esc(j.company)}</div><div style="font-size:19px">${esc(j.role)}</div>
     <div class="row muted small" style="margin-top:6px"><span>${esc(j.comp || "Pay not posted")}</span><span>${esc(j.location || "")}</span><span>Fit ${j.fit_score ?? "?"}</span><span>${esc(j.source || "")}</span></div></div>
-    <div class="row"><a id="openApply" class="btn p big" target="_blank" rel="noopener" href="${esc(j.apply_url || j.posting_url)}">Open application ↗</a>${skipCompanyBtn(j.company)}${stretchMoveBtn(j)}</div></div>
+    <div class="row"><a id="openApply" class="btn p big" target="_blank" rel="noopener" href="${esc(safeUrl(j.apply_url || j.posting_url))}">Open application ↗</a>${skipCompanyBtn(j.company)}${stretchMoveBtn(j)}</div></div>
     ${dueCallout(j)}${stretchReasonBox(j)}
     <p>${esc(j.fit_notes || "")}</p>
     <ol class="steps">
@@ -892,7 +894,7 @@ async function queue(refArg, stretchMode = false) {
    ${whoContactsCard(j)}
    ${customAnswersCard(j, "qca")}
    <div class="card" style="margin-top:14px"><h2>Answers</h2>${ans.map((a, i) => `<div class="ans ${a.needs_review ? "fd" : ""}"><div class="q"><span>${esc(a.q)}</span><button class="btn s copy" data-copy="#qa${i}">COPY</button></div><div class="a" id="qa${i}">${esc(a.a)}</div></div>`).join("")}</div>
-   <div class="row" style="margin-top:16px"><button class="btn" id="prev">← Previous</button><button class="btn warn" id="skip">Skip for now</button>${skipCompanyBtn(j.company, "btn warn")}${nlaButtons(j)}<a class="btn" href="#/job/${j.ref}">Full job page</a><button class="btn p big right" id="applied">Mark applied ✓</button></div></div>`;
+   <div class="row" style="margin-top:16px"><button class="btn" id="prev">← Previous</button><button class="btn warn" id="skip">Skip for now</button>${skipCompanyBtn(j.company, "btn warn")}${nlaButtons(j)}<a class="btn" href="#/job/${esc(j.ref)}">Full job page</a><button class="btn p big right" id="applied">Mark applied ✓</button></div></div>`;
   const go = d => { const n = Q[(idx + d + Q.length) % Q.length]; const dest = hashBase + "/" + n.ref; if (location.hash === dest) { route(); } else { location.hash = dest; } };
   $("#prev").onclick = () => go(-1); $("#skip").onclick = () => go(1);
   bindQ(); bindOutside(getQ());
@@ -920,8 +922,8 @@ function answersView() {
   <div class="toolbar"><input id="aq" placeholder="Search questions and answers…" style="flex:1"><select id="ac"><option value="">All categories</option>${cats.map(c => `<option>${esc(c)}</option>`).join("")}</select><button class="btn" id="addA">+ New answer</button></div><div id="alist"></div>`;
   const draw = () => { const q = $("#aq").value.toLowerCase(), c = $("#ac").value;
     $("#alist").innerHTML = STATE.answers.filter(a => (!c || a.category === c) && (!q || (a.question + a.answer).toLowerCase().includes(q))).map(a => `
-    <div class="ans ${a.needs_review ? "fd" : ""}"><div class="q"><span>${esc(a.question)} <span class="tag">${esc(a.category)}</span>${a.used ? ` <span class="tag">copied ${a.used}×</span>` : ""}</span><button class="btn s copy" data-copy="#an-${a.id}" data-answer-id="${a.id}" data-used="${a.used || 0}">COPY</button></div>
-    <div class="a" id="an-${a.id}" contenteditable="true" data-id="${a.id}">${esc(a.answer)}</div></div>`).join("");
+    <div class="ans ${a.needs_review ? "fd" : ""}"><div class="q"><span>${esc(a.question)} <span class="tag">${esc(a.category)}</span>${a.used ? ` <span class="tag">copied ${a.used}×</span>` : ""}</span><button class="btn s copy" data-copy="#an-${esc(a.id)}" data-answer-id="${esc(a.id)}" data-used="${a.used || 0}">COPY</button></div>
+    <div class="a" id="an-${esc(a.id)}" contenteditable="true" data-id="${esc(a.id)}">${esc(a.answer)}</div></div>`).join("");
     $$("#alist [contenteditable]").forEach(el => el.addEventListener("blur", async () => { const a = STATE.answers.find(x => x.id === el.dataset.id); if (a.answer === el.innerText) return; a.answer = el.innerText; await api("/api/answers/" + a.id, { method: "PATCH", body: { answer: el.innerText } }); toast("Saved"); }));
   };
   $("#aq").oninput = draw; $("#ac").oninput = draw;
@@ -938,7 +940,7 @@ function referrals() {
   ${rows.map(([k, L]) => { const ap = L.filter(j => j.date_applied).length, iv = L.filter(j => ["Next steps", "Interview scheduled", "Offer"].includes(j.status)).length;
     return `<div class="card" style="margin-bottom:14px"><div class="row"><h2 style="margin:0">${esc(k)}</h2><span class="tag">${L.length} roles</span><span class="tag">${ap} applied</span><span class="tag">${iv} moving</span></div>
     <div class="bar" style="margin:10px 0"><i style="width:${(ap / L.length) * 100}%"></i></div>
-    ${L.map(j => `<div class="row small" style="margin:4px 0"><span class="ref">${j.ref}</span>${statusPill(j.status)}<a href="#/job/${j.ref}">${esc(j.company)} · ${esc(j.role)}</a><span class="muted right">${esc(j.referral_date || "")}</span></div>`).join("")}</div>`; }).join("")}`;
+    ${L.map(j => `<div class="row small" style="margin:4px 0"><span class="ref">${esc(j.ref)}</span>${statusPill(j.status)}<a href="#/job/${esc(j.ref)}">${esc(j.company)} · ${esc(j.role)}</a><span class="muted right">${esc(j.referral_date || "")}</span></div>`).join("")}</div>`; }).join("")}`;
 }
 
 /* ---------- 1Password ---------- */
@@ -977,7 +979,7 @@ function limitEditor() {
     <td><button class="btn s" data-save-lim="${esc(l.company)}">Save</button> <button class="btn s danger" data-rm-lim="${esc(l.company)}">Remove</button></td>
   </tr>`).join("");
   const skipRows = skips.map(s => `<div class="row" style="margin:6px 0"><b>${esc(s.company)}</b> <span class="muted small">${s.until ? "until " + esc(s.until) : "until you resume"}</span><button class="btn s right" data-resume-co="${esc(s.company)}">Resume</button></div>`).join("") || '<p class="muted small">No manual company skips.</p>';
-  const extraRows = extras.map(e => `<div class="row" style="margin:6px 0"><span>${esc(e.company)} · ${esc(e.date_applied)}</span> ${(e.gmail_receipt_url || e.receipt_url) ? `<a class="small" target="_blank" rel="noopener" href="${esc(e.gmail_receipt_url || e.receipt_url)}">receipt ↗</a>` : ""} <span class="muted small">${esc(e.note || "")}</span></div>`).join("");
+  const extraRows = extras.map(e => `<div class="row" style="margin:6px 0"><span>${esc(e.company)} · ${esc(e.date_applied)}</span> ${(e.gmail_receipt_url || e.receipt_url) ? `<a class="small" target="_blank" rel="noopener" href="${esc(safeUrl(e.gmail_receipt_url || e.receipt_url))}">receipt ↗</a>` : ""} <span class="muted small">${esc(e.note || "")}</span></div>`).join("");
   return `<div class="card" style="margin:14px 0"><h2>Company apply limits</h2>
     <p class="small muted">Caps pause every To apply role at that company until a slot opens. They stay To apply, just out of the queue. Google is 3 applications per rolling 30 days.</p>
     <table class="limits-table"><tr><th>Company</th><th>Max</th><th>Window</th><th>Kind</th><th>Policy URL</th><th>Note</th><th></th></tr>

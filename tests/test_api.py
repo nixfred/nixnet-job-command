@@ -365,6 +365,61 @@ Manage your daily job alert > <https://www.dice.com/dashboard/alerts>
         again, d2 = AL.plan(got, [dict(a, ref="J-%d" % i) for i, a in enumerate(add)])
         self.assertEqual((len(again), len(d2)), (0, 3))                    # same URLs are already tracked
 
+    # Request guard: cross-site writes, DNS rebinding and unsafe refs are refused.
+    def _raw(self, method, path, body=b"", headers=None):
+        req = urllib.request.Request(self.base + path, method=method, data=body or None, headers=headers or {})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            with e:
+                return e.code, json.loads(e.read() or b"{}")
+
+    def test_cross_site_text_plain_post_is_refused(self):
+        n_before = len(self.get("/api/jobs")[1])
+        body = json.dumps({"company": "Evil", "role": "R"}).encode()
+        status, data = self._raw("POST", "/api/jobs", body,
+                                 {"Content-Type": "text/plain", "Origin": "https://evil.example"})
+        self.assertEqual(status, 403)
+        self.assertIn("cross-origin", data["error"])
+        status, _ = self._raw("POST", "/api/settings", b'{"daily_goal":99}',
+                              {"Content-Type": "text/plain", "Sec-Fetch-Site": "cross-site"})
+        self.assertEqual(status, 403)
+        status, _ = self._raw("DELETE", "/api/shots/abc", headers={"Origin": "null"})
+        self.assertEqual(status, 403)
+        self.assertEqual(len(self.get("/api/jobs")[1]), n_before)
+
+    def test_same_origin_and_headerless_writes_still_work(self):
+        host = "127.0.0.1:%d" % self.port
+        status, _ = self._raw("POST", "/api/feedback", b'{"kind":"idea","text":"same origin"}',
+                              {"Content-Type": "application/json", "Origin": "http://" + host})
+        self.assertEqual(status, 201)
+        status, _ = self._raw("POST", "/api/feedback", b'{"kind":"idea","text":"curl style"}')  # no Origin, like curl -d
+        self.assertEqual(status, 201)
+        status, _ = self._raw("POST", "/api/feedback", b'{"kind":"idea","text":"other port"}',
+                              {"Origin": "http://127.0.0.1:1"})
+        self.assertEqual(status, 403)
+
+    def test_unknown_host_is_refused(self):
+        status, data = self._raw("GET", "/api/settings", headers={"Host": "attacker.example:%d" % self.port})
+        self.assertEqual(status, 403)
+        self.assertIn("Host", data["error"])
+        status, _ = self._raw("GET", "/api/health", headers={"Host": "localhost:%d" % self.port})
+        self.assertEqual(status, 200)
+
+    def test_unsafe_refs_and_answer_ids_are_rejected(self):
+        bad = 'x"><img src=x onerror=alert(1)>'
+        status, _ = self._raw("POST", "/api/jobs", json.dumps({"ref": bad, "company": "A", "role": "B"}).encode())
+        self.assertEqual(status, 400)
+        status, data = self._raw("POST", "/api/import", json.dumps({"jobs": [{"ref": bad, "company": "A", "role": "B"}],
+                                                                    "answers": [{"id": "a b", "question": "q"}]}).encode())
+        self.assertEqual(status, 200)
+        self.assertEqual(data["added"], 0)
+        self.assertEqual(len(data["rejected"]), 2)
+        status, _ = self._raw("POST", "/api/answers", json.dumps({"id": "<x>", "question": "q"}).encode())
+        self.assertEqual(status, 400)
+        self.assertNotIn(bad, {j["ref"] for j in self.get("/api/jobs")[1]})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
