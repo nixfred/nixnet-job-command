@@ -154,6 +154,27 @@ class ApiTests(unittest.TestCase):
         self.server_mod.detect_answers_flag(real)
         real.close()
 
+    def test_dashboard_stats_use_the_configured_timezone_date(self):
+        # The Dashboard must count "today" the way Progress does: in the configured timezone,
+        # not by the host clock. Pretend the configured zone is already on a later date.
+        import config, datetime
+        later = datetime.date.today() + datetime.timedelta(days=3)
+        _, before = self.get("/api/jobs/J-002")
+        config.CFG.today = lambda: later
+        try:
+            self._send("PATCH", "/api/jobs/J-002", {"date_applied": later.isoformat()})
+            _, st = self.get("/api/stats")
+            _, pr = self.get("/api/progress")
+            self.assertEqual(st["today"], later.isoformat())
+            self.assertEqual(st["today"], pr["today"])
+            self.assertEqual(st["applied_today"], pr["today_count"])
+            self.assertGreaterEqual(st["applied_today"], 1)
+            self.assertGreaterEqual(st["streak"], 1)
+        finally:
+            del config.CFG.today
+            self._send("PATCH", "/api/jobs/J-002", {"date_applied": before.get("date_applied") or ""})
+
+
     def test_seed_can_be_turned_off(self):
         import config
         os.environ["NJC_SEED"] = "none"

@@ -574,9 +574,10 @@ def stats(c):
         da = j.get("date_applied")
         if da:
             per_day[da[:10]] = per_day.get(da[:10], 0) + 1
-    today = datetime.date.today().isoformat()
+    today_d = today_et()
+    today = today_d.isoformat()
     # streak = consecutive days up to today with >=1 application
-    streak, day = 0, datetime.date.today()
+    streak, day = 0, today_d
     while per_day.get(day.isoformat()):
         streak += 1; day -= datetime.timedelta(days=1)
     goal_row = c.execute("SELECT v FROM settings WHERE k='daily_goal'").fetchone()
@@ -592,8 +593,8 @@ def stats(c):
     upcoming = sorted([{"ref": j["ref"], "company": j.get("company"), "role": j.get("role"), "at": j.get("interview_at")} for j in jobs if j.get("interview_at") and j["interview_at"][:10] >= today], key=lambda x: x["at"])
     followups = sorted([{"ref": j["ref"], "company": j.get("company"), "role": j.get("role"), "at": j.get("follow_up")} for j in jobs if j.get("follow_up") and j.get("status") not in ("Rejected", "Closed", "Withdrawn")], key=lambda x: x["at"])
     stale = [ {"ref": j["ref"], "company": j.get("company"), "role": j.get("role"), "date_applied": j.get("date_applied")} for j in jobs
-              if j.get("status") == "Applied" and j.get("date_applied") and (datetime.date.today() - datetime.date.fromisoformat(j["date_applied"][:10])).days >= 10 ]
-    pol = CP.company_policy(c, jobs)
+              if j.get("status") == "Applied" and j.get("date_applied") and (today_d - datetime.date.fromisoformat(j["date_applied"][:10])).days >= 10 ]
+    pol = CP.company_policy(c, jobs, today=today_d)
     queued = pol["queued_to_apply"]
     paused = pol["paused_to_apply"]
     stretch_n = pol.get("stretch_to_apply", 0)
