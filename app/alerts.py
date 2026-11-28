@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Job-alert intake for NixNet Job Command.
 
-Job alert emails (LinkedIn today) list roles in a regular layout:
+Alert emails from LinkedIn, Dice and Built In are read (see parse_email).
+A LinkedIn alert lists roles in a regular layout:
 
     Your job alert for <search name>
     <job title>

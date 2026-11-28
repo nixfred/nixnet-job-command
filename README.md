@@ -92,7 +92,7 @@ Your agents (or you) can pull from all of this:
 - **Company career boards:** Greenhouse, Ashby, Lever, and the rest. The ATS is recorded on the card so you know the form you are walking into.
 - **Startup lists and outlier roundups:** batch imports, scored and queued the same as a single link.
 
-**Job alerts, handled.** Alert emails (LinkedIn digests today) go straight in. Whoever has your mail hands the text to `POST /api/alerts/ingest`; the app parses each role, drops the ones you already track (same LinkedIn job id, same URL, or same company plus a near-identical title, in any status, so a role you closed never comes back), and triages the rest by title. Roles that look like your target work (solutions, forward deployed, applied AI) join the apply queue; everything else lands in Stretch with a reason. It remembers which emails it has read, so running it again is safe, and `dry_run` shows what would happen first.
+**Job alerts, handled.** Alert emails (LinkedIn, Dice and Built In digests today) go straight in. Whoever has your mail hands the text to `POST /api/alerts/ingest`; the app parses each role, drops the ones you already track (same LinkedIn job id, same URL, or same company plus a near-identical title, in any status, so a role you closed never comes back), and triages the rest by title. Roles that look like your target work (solutions, forward deployed, applied AI) join the apply queue; everything else lands in Stretch with a reason. It remembers which emails it has read, so running it again is safe, and `dry_run` shows what would happen first.
 
 ```bash
 curl -s localhost:8742/api/alerts/ingest -d '{"emails":[{"id":"<gmail id>","subject":"...","text":"<email body>"}],"dry_run":true}'
