@@ -283,6 +283,18 @@ View job: https://www.linkedin.com/comm/jobs/view/9000000004/?trackingId=jkl
         self.assertEqual((twice["added"], len(twice["duplicates"])), ([], 3))
         self.assertIn("t-e1", self.get("/api/alerts/seen")[1]["email_ids"])
 
+    def test_answers_for_a_role_without_posting_text_do_not_quote_its_notes(self):
+        AL, CA = __import__("alerts"), __import__("custom_answers")
+        role = AL.role_record({"title": "Forward Deployed Engineer", "company": "Initrode Labs", "job_id": "9000000009"})
+        self.assertIn("triaged by title", role["fit_notes"])          # the note every alert role starts with
+        self.assertEqual(CA.jd_themes(role), [])                       # no posting text, so no posting themes
+        text = " ".join(str(i.get("a") or "") for i in CA.generate(role))
+        self.assertTrue(text)
+        self.assertNotIn("leans on", text)
+        self.assertNotIn("triaged by title", text)
+        skill = CA.skills()[0]                                         # a posting that names a skill still gets its theme
+        self.assertEqual(CA.jd_themes(dict(role, jd="Daily work with %s." % skill)), [skill])
+
     def test_alert_items_dedupe_against_existing_roles_by_company_and_title(self):
         _, jobs = self.get("/api/jobs")
         have = jobs[0]

@@ -174,10 +174,11 @@ def skills():
 
 
 def jd_themes(job, limit=3):
+    """Profile skills the posting text names. A role with no posting text has no themes: fit_notes are
+    the tracker's own notes, not the posting's words, and must not be quoted as what the posting says."""
     jd = job.get("jd") or ""
     if not jd:
-        notes = job.get("fit_notes") or ""
-        return [clean(notes)] if notes else []
+        return []
     text = re.sub(r"(?s)<[^>]+>", " ", jd)
     found = []
     low = text.lower()
